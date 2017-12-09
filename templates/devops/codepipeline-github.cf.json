@@ -2,13 +2,21 @@
     "AWSTemplateFormatVersion" : "2010-09-09",
     "Description" : "",
     "Parameters" : {
+        "UserName": {
+            "Type":"String",
+            "Description":"GitHub user name."
+        },
+        "OAuthToken": {
+            "Type":"String",
+            "Description":"GitHub OAuthToken giving AWS access to GitHub."
+        },
         "PackageName": {
             "Type":"String",
-            "Description":"CodeCommit package name."
+            "Description":"GitHub package name."
         },
         "PackageBranch": {
             "Type":"String",
-            "Description":"CodeCommit package branch.",
+            "Description":"GitHub package branch.",
             "Default":"master"
         },
         "BuildTimeout": {
@@ -33,34 +41,14 @@
                         {
                             "Effect": "Allow",
                             "Resource": [
-                                {"Fn::Sub":"arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${PackageName}"},
-                                {"Fn::Sub":"arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${PackageName}:*"},
-                                {"Fn::Sub":"arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${PackageName}/*"}
+                                {"Fn::Sub":"arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${PackageName}-${PackageBranch}"},
+                                {"Fn::Sub":"arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${PackageName}-${PackageBranch}:*"},
+                                {"Fn::Sub":"arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${PackageName}-${PackageBranch}/*"}
                             ],
                             "Action": [
                                 "logs:CreateLogGroup",
                                 "logs:CreateLogStream",
                                 "logs:PutLogEvents"
-                            ]
-                        },
-                        {
-                            "Effect": "Allow",
-                            "Resource": [
-                                {"Fn::Sub":"arn:${AWS::Partition}:s3:::codepipeline-${AWS::Region}-*"}
-                            ],
-                            "Action": [
-                                "s3:PutObject",
-                                "s3:GetObject",
-                                "s3:GetObjectVersion"
-                            ]
-                        },
-                        {
-                            "Effect": "Allow",
-                            "Resource": [
-                                {"Fn::Sub":"arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${PackageName}"}
-                            ],
-                            "Action": [
-                                "codecommit:GitPull"
                             ]
                         },
                         {
@@ -116,7 +104,6 @@
                         {
                             "Action": [
                                 "codebuild:*",
-                                "codecommit:*",
                                 "codedeploy:*"
                             ],
                             "Resource": "*",
@@ -169,7 +156,7 @@
                     "Name" : "build.tgz",
                     "NamespaceType" : "BUILD_ID",
                     "Packaging" : "NONE",
-                    "Path" : {"Ref":"PackageName"},
+                    "Path" : {"Fn::Sub":"${PackageName}-${PackageBranch}"},
                     "Type" : "S3"
                 },
                 "Environment": {
@@ -179,12 +166,16 @@
                     "Type" : "LINUX_CONTAINER"
                 },
                 "BadgeEnabled" : false,
-                "Description" : {"Fn::Sub":"CodeBuild project for ${PackageName}"},
-                "Name" : {"Fn::Sub":"${PackageName}"},
+                "Description" : {"Fn::Sub":"CodeBuild project for branch ${PackageBranch} of package ${PackageName}"},
+                "Name" : {"Fn::Sub":"${PackageName}-${PackageBranch}"},
                 "ServiceRole" : {"Fn::GetAtt" : ["BuildRole", "Arn"] },
                 "Source" : {
-                    "Type":"CODECOMMIT",
-                    "Location": {"Fn::Sub":"https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${PackageName}"}
+                    "Type":"GITHUB",
+                    "Location": {"Fn::Sub":"https://github.com/${UserName}/${PackageName}.git"},
+                    "Auth": {
+                        "Type":"OAUTH",
+                        "Resource":{"Ref":"OAuthToken"}
+                    }
                 },
                 "TimeoutInMinutes" : {"Ref":"BuildTimeout"}
             }
@@ -196,7 +187,7 @@
                     "Location":{"Ref":"CodeBuildArtifactBucket"},
                     "Type":"S3"
                 },
-                "Name" : {"Fn::Sub":"${PackageName}"},
+                "Name" : {"Fn::Sub":"${PackageName}-${PackageBranch}"},
                 "RestartExecutionOnUpdate" : true,
                 "RoleArn" : {"Fn::GetAtt" : ["PipelineRole", "Arn"] },
                 "Stages" : [
@@ -204,14 +195,16 @@
                         "Actions":[{
                             "ActionTypeId" : {
                                 "Category" : "Source",
-                                "Owner" : "AWS",
-                                "Provider" : "CodeCommit",
+                                "Owner" : "ThirdParty",
+                                "Provider" : "GitHub",
                                 "Version" : "1"
                             },
                             "Configuration" : {
-                                "BranchName":{"Ref":"PackageBranch"},
-                                "PollForSourceChanges":true,
-                                "RepositoryName":{"Ref":"PackageName"}
+                                "Repo":{"Ref":"PackageName"},
+                                "Branch":{"Ref":"PackageBranch"},
+                                "Owner":{"Ref":"UserName"},
+                                "OAuthToken":{"Ref":"OAuthToken"},
+                                "PollForSourceChanges":true
                             },
                             "InputArtifacts" : [],
                             "Name" : "Source",
@@ -258,7 +251,7 @@
         "ArtifactBucket" : {
             "Description":"Bucket into which all build artifacts will be put.",
             "Value":{"Ref":"CodeBuildArtifactBucket"},
-            "Export": { "Name" : {"Fn::Sub": "${PackageName}-ArtifactBucket" }}
+            "Export": { "Name" : {"Fn::Sub": "${AWS::StackName}-ArtifactBucket" }}
         }
     }
 }
