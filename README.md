@@ -15,14 +15,16 @@ Template for a CodePipeline that will automatically build a GitHub package using
 
 Some manual work is required to enable the auth for this pipeline to talk to GitHub:
 
--Go to https://github.com/settings/tokens/new
+-Go to [Settings/Developer settings/Personal access tokens](https://github.com/settings/tokens/new) in GitHub to create a new OAuth token.
 
--In description, put "AWS CodeBuild/CodePipeline" or something else descriptive.
+-Click "Generate new token"
 
--Select "repo" and "admin:repo_hook"
+-In "Token description", put "AWS CodeBuild/CodePipeline" or something else descriptive.
+
+-Under "Select scopes", select "repo" and "admin:repo_hook"
 
 -Click "Generate Token"
 
 -Copy the token.  Keep it secret, keep it safe, and provide it as an unencrypted input to your CF stacks.  (Yeah, I know that means read access to your CF stack inputs is equivalent to admin access to all your GitHub repos, but that's what seems to currently be required.)
 
--Finally, follow the instructions in step 5 of [Create a Build Project (Console)] (http://docs.aws.amazon.com/codebuild/latest/userguide/create-project.html#create-project-console) in the CodeBuild docs to directly give AWS access to GitHub.  (And yeah, I know this is just giving AWS the same permissions as those given by the aforementioned OAuth token, but it's what seems to currently be required.)
+-Finally, follow the instructions in step 5 of ["Create a Build Project (Console)"](http://docs.aws.amazon.com/codebuild/latest/userguide/create-project.html#create-project-console) in the CodeBuild docs to directly give AWS access to GitHub.  (And yeah, I know this is just giving AWS the same permissions as those given by the aforementioned OAuth token, but it's what seems to currently be required.)
