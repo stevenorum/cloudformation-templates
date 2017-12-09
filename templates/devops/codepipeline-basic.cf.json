@@ -6,6 +6,11 @@
             "Type":"String",
             "Description":"CodeCommit package name."
         },
+        "PackageBranch": {
+            "Type":"String",
+            "Description":"CodeCommit package branch.",
+            "Default":"master"
+        },
         "BuildTimeout": {
             "Type":"Number",
             "Description":"Max time for the build to take.",
@@ -204,7 +209,7 @@
                                 "Version" : "1"
                             },
                             "Configuration" : {
-                                "BranchName":"master",
+                                "BranchName":{"Ref":"PackageBranch"},
                                 "PollForSourceChanges":true,
                                 "RepositoryName":{"Ref":"PackageName"}
                             },
