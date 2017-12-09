@@ -1,6 +1,8 @@
 # cloudformation-templates
 Various useful cloudformation templates.
 
+Important note: I'm still working on minimizing the IAM permissions for some of the entities in the templates, so some of the policies included may be overly permissive.
+
 ## devops
 ### [codepipeline-basic.cf.json](https://github.com/stevenorum/cloudformation-templates/blob/master/templates/devops/codepipeline-basic.cf.json)
 
