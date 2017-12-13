@@ -397,7 +397,8 @@
                                 "StackName": {"Fn::Sub":"${AWS::StackName}-LambdaFunction"},
                                 "ChangeSetName":{"Fn::Sub":"${AWS::StackName}-LambdaFunction-ChangeSet"},
                                 "RoleArn": {"Fn::GetAtt": ["CloudFormationRole", "Arn"]},
-                                "TemplatePath": "BuildArtifacts::NewSamTemplate.yml"
+                                "TemplatePath": "BuildArtifacts::NewSamTemplate.yml",
+                                "Capabilities":"CAPABILITY_IAM"
                             },
                             "InputArtifacts" : [
                                 {
