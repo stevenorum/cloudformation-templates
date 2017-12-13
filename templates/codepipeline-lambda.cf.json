@@ -423,7 +423,7 @@
                                 "ActionMode": "CHANGE_SET_EXECUTE",
                                 "StackName": {"Fn::Sub":"${AWS::StackName}-LambdaFunction"},
                                 "ChangeSetName":{"Fn::Sub":"${AWS::StackName}-LambdaFunction-ChangeSet"},
-                                "Capabilities":["CAPABILITY_IAM"]
+                                "Capabilities":"CAPABILITY_IAM"
                             },
                             "InputArtifacts" : [
                                 {
