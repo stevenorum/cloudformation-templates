@@ -1,0 +1,826 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "",
+    "Parameters": {
+        "KeyName": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "The EC2 Key Pair to allow SSH access to the client instance"
+        }
+    },
+    "Mappings": {
+        "RegionMap": {
+            "us-east-1": {
+                "64": "ami-8c1be5f6",
+                "InstanceType": "m4.large"
+            },
+            "us-east-2": {
+                "64": "ami-c5062ba0",
+                "InstanceType": "m4.large"
+            },
+            "us-west-2": {
+                "64": "ami-e689729e",
+                "InstanceType": "m4.large"
+            }
+        }
+    },
+    "Resources": {
+        "CloudHsmVpc": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": "10.0.0.0/16",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "CloudHSM VPC"
+                    }
+                ]
+            }
+        },
+        "IGW": {
+            "Type": "AWS::EC2::InternetGateway"
+        },
+        "AttachIGW": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "CloudHsmVpc"
+                },
+                "InternetGatewayId": {
+                    "Ref": "IGW"
+                }
+            }
+        },
+        "PublicSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "CidrBlock": "10.0.0.0/24",
+                "VpcId": {
+                    "Ref": "CloudHsmVpc"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "CloudHSM Public Subnet"
+                    }
+                ]
+            }
+        },
+        "PublicSubnetRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "CloudHsmVpc"
+                }
+            }
+        },
+        "PublicRouteToInternet": {
+            "DependsOn": "AttachIGW",
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "IGW"
+                },
+                "RouteTableId": {
+                    "Ref": "PublicSubnetRouteTable"
+                }
+            }
+        },
+        "PublicRouteTableAssoc": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "PublicSubnetRouteTable"
+                },
+                "SubnetId": {
+                    "Ref": "PublicSubnet"
+                }
+            }
+        },
+        "PrivateSubnet1": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        "0",
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "CidrBlock": "10.0.201.0/24",
+                "VpcId": {
+                    "Ref": "CloudHsmVpc"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "CloudHSM Private Subnet1"
+                    }
+                ]
+            }
+        },
+        "PrivateSubnet2": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        "1",
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "CidrBlock": "10.0.202.0/24",
+                "VpcId": {
+                    "Ref": "CloudHsmVpc"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "CloudHSM Private Subnet2"
+                    }
+                ]
+            }
+        },
+        "PrivateSubnet3": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        "2",
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "CidrBlock": "10.0.203.0/24",
+                "VpcId": {
+                    "Ref": "CloudHsmVpc"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "CloudHSM Private Subnet3"
+                    }
+                ]
+            }
+        },
+        "ClientSG": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Client Instance Security Group",
+                "VpcId": {
+                    "Ref": "CloudHsmVpc"
+                }
+            }
+        },
+        "ClientIamPolicy": {
+            "Type": "AWS::IAM::ManagedPolicy",
+            "Properties": {
+                "Description": "",
+                "Path": "/",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "cloudhsm:*"
+                            ],
+                            "Resource": "*",
+                            "Effect": "Allow"
+                        },
+                        {
+                            "Action": [
+                                "s3:GetObject"
+                            ],
+                            "Resource": {
+                                "Fn::Sub": "arn:${AWS::Partition}:s3:::${CertBucket}/*"
+                            },
+                            "Effect": "Allow"
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "ClientIamRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "ec2.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    {
+                        "Ref": "ClientIamPolicy"
+                    }
+                ]
+            }
+        },
+        "ClientIamProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Roles": [
+                    {
+                        "Ref": "ClientIamRole"
+                    }
+                ]
+            }
+        },
+        "ClientInstance": {
+            "DependsOn": "ClusterClaim",
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "IamInstanceProfile": {
+                    "Ref": "ClientIamProfile"
+                },
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "64"
+                    ]
+                },
+                "InstanceType": {
+                    "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "InstanceType"
+                    ]
+                },
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "SecurityGroupIds": [
+                    {
+                        "Ref": "ClientSG"
+                    },
+                    {
+                        "Fn::GetAtt": [
+                            "Cluster",
+                            "SecurityGroup"
+                        ]
+                    }
+                ],
+                "SubnetId": {
+                    "Ref": "PublicSubnet"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "CloudHSM Client"
+                    }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#!/bin/bash\n",
+                                "sudo yum install -y emacs tree python36 python36-pip\n",
+                                "sudo pip-3.6 install boto3\n",
+                                "wget https://s3.amazonaws.com/cloudhsmv2-software/cloudhsm-client-latest.x86_64.rpm -O /home/ec2-user/cloudhsm-client-latest.x86_64.rpm\n",
+                                "sudo yum install -y /home/ec2-user/cloudhsm-client-latest.x86_64.rpm\n",
+                                "sudo aws s3 cp s3://",
+                                {
+                                    "Ref": "CertBucket"
+                                },
+                                "/",
+                                {
+                                    "Ref": "Cluster"
+                                },
+                                "-CustomerCA.crt /opt/cloudhsm/etc/customerCA.crt\n",
+                                "sudo /opt/cloudhsm/bin/configure -a ",
+                                {
+                                    "Fn::GetAtt": [
+                                        "Hsm",
+                                        "EniIp"
+                                    ]
+                                },
+                                "\n",
+                                "sudo wget https://s3.amazonaws.com/cloudhsmv2-software/cloudhsm-client-pkcs11-latest.x86_64.rpm -O /home/ec2-user/cloudhsm-client-pkcs11-latest.x86_64.rpm\n",
+                                "sudo yum install -y /home/ec2-user/cloudhsm-client-pkcs11-latest.x86_64.rpm\n",
+                                "sudo sed -i '0,/enabled=0/s//enabled=1/' /etc/yum.repos.d/epel.repo\n",
+                                "cd /opt/cloudhsm\n",
+                                "sudo /opt/cloudhsm/bin/setup_redis\n",
+                                "sudo service redis start\n",
+                                "\n",
+                                "echo '(Taken from https://docs.aws.amazon.com/cloudhsm/latest/userguide/activate-cluster.html)' > /home/ec2-user/README.txt\n",
+                                "echo 'To change the PreCO password:' >> /home/ec2-user/README.txt\n",
+                                "echo '$ /opt/cloudhsm/bin/cloudhsm_mgmt_util /opt/cloudhsm/etc/cloudhsm_mgmt_util.cfg' >> /home/ec2-user/README.txt\n",
+                                "echo 'aws-cloudhsm>enable_e2e' >> /home/ec2-user/README.txt\n",
+                                "echo 'aws-cloudhsm>loginHSM PRECO admin password' >> /home/ec2-user/README.txt\n",
+                                "echo 'aws-cloudhsm>changePswd PRECO admin NewCOPassword' >> /home/ec2-user/README.txt\n",
+                                "echo 'aws-cloudhsm>logoutHSM' >> /home/ec2-user/README.txt\n",
+                                "echo 'aws-cloudhsm>loginHSM CO admin NewCOPassword' >> /home/ec2-user/README.txt\n",
+                                "echo 'aws-cloudhsm>createUser CU cryptouser NewCUPassword' >> /home/ec2-user/README.txt\n",
+                                "echo 'aws-cloudhsm>logoutHSM' >> /home/ec2-user/README.txt\n",
+                                "echo 'aws-cloudhsm>quit' >> /home/ec2-user/README.txt\n",
+                                "echo '$ sudo start cloudhsm-client' >> /home/ec2-user/README.txt\n",
+                                "echo '$ /opt/cloudhsm/bin/key_mgmt_util' >> /home/ec2-user/README.txt\n"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "ClientEip": {
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "vpc",
+                "InstanceId": {
+                    "Ref": "ClientInstance"
+                }
+            }
+        },
+        "CertBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+            }
+        },
+        "Cluster": {
+            "Type": "Custom::Cluster",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CloudHsmV2CreateFunction",
+                        "Arn"
+                    ]
+                },
+                "HsmType": "hsm1.medium",
+                "SubnetIds": [
+                    {
+                        "Ref": "PrivateSubnet1"
+                    },
+                    {
+                        "Ref": "PrivateSubnet2"
+                    },
+                    {
+                        "Ref": "PrivateSubnet3"
+                    }
+                ]
+            }
+        },
+        "ClusterWait": {
+            "Type": "Custom::CreateWaiter",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CloudHsmV2CreateFunction",
+                        "Arn"
+                    ]
+                },
+                "ClusterId": {
+                    "Ref": "Cluster"
+                },
+                "FailOnTimeout": true
+            }
+        },
+        "Hsm": {
+            "DependsOn": "ClusterWait",
+            "Type": "Custom::Hsm",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CloudHsmV2CreateFunction",
+                        "Arn"
+                    ]
+                },
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        "0",
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "ClusterId": {
+                    "Ref": "Cluster"
+                }
+            }
+        },
+        "HsmFirstWait": {
+            "Type": "Custom::CreateWaiter",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CloudHsmV2CreateFunction",
+                        "Arn"
+                    ]
+                },
+                "ClusterId": {
+                    "Ref": "Cluster"
+                },
+                "HsmId": {
+                    "Ref": "Hsm"
+                },
+                "FailOnTimeout": false
+            }
+        },
+        "HsmSecondWait": {
+            "DependsOn": "HsmFirstWait",
+            "Type": "Custom::CreateWaiter",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CloudHsmV2CreateFunction",
+                        "Arn"
+                    ]
+                },
+                "ClusterId": {
+                    "Ref": "Cluster"
+                },
+                "HsmId": {
+                    "Ref": "Hsm"
+                },
+                "FailOnTimeout": false
+            }
+        },
+        "HsmThirdWait": {
+            "DependsOn": "HsmSecondWait",
+            "Type": "Custom::CreateWaiter",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CloudHsmV2CreateFunction",
+                        "Arn"
+                    ]
+                },
+                "ClusterId": {
+                    "Ref": "Cluster"
+                },
+                "HsmId": {
+                    "Ref": "Hsm"
+                },
+                "FailOnTimeout": true
+            }
+        },
+        "ClusterClaim": {
+            "DependsOn": "HsmThirdWait",
+            "Type": "Custom::ClusterClaim",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CloudHsmV2ClaimFunction",
+                        "Arn"
+                    ]
+                },
+                "ClusterId": {
+                    "Ref": "Cluster"
+                },
+                "BucketName": {
+                    "Ref": "CertBucket"
+                }
+            }
+        },
+        "CloudHsmV2CreateFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "ZipFile": {
+                        "Fn::Join": [
+                            "\n",
+                            [
+                                "import boto3",
+                                "import cfnresponse",
+                                "import json",
+                                "import time",
+                                "chsmv2 = boto3.client('cloudhsmv2')",
+                                "def make_serializable(obj):",
+                                "    if None == obj or isinstance(obj, (str,int,float,bool)):",
+                                "        return obj",
+                                "    if isinstance(obj, (dict)):",
+                                "        return {make_serializable(k):make_serializable(obj[k]) for k in obj}",
+                                "    if isinstance(obj, (list)):",
+                                "        return [make_serializable(e) for e in obj]",
+                                "    return str(obj)",
+                                "def describe(cluster_id, hsm_id=None):",
+                                "    cluster = chsmv2.describe_clusters(Filters={'clusterIds':[cluster_id]})['Clusters'][0]",
+                                "    return [h for h in cluster['Hsms'] if h['HsmId'] == hsm_id][0] if hsm_id else cluster",
+                                "def wait(cluster_id, hsm_id=None, success_states=['ACTIVE','UNINITIALIZED'], ft=True):",
+                                "    rid = hsm_id if hsm_id else cluster_id",
+                                "    print('Waiting for {} to be in a stable state.'.format(rid))",
+                                "    for i in range(50):",
+                                "        r = describe(cluster_id, hsm_id)",
+                                "        state = r['State']",
+                                "        print('State: {}'.format(state))",
+                                "        if state.endswith('S'):",
+                                "            time.sleep(5)",
+                                "            continue",
+                                "        elif state in success_states:",
+                                "            return r",
+                                "        else:",
+                                "            raise Exception('{} is in unexpected state {}'.format(rid, state))",
+                                "    if ft:",
+                                "        raise Exception('{} is still in transitional state {}'.format(rid, state))",
+                                "    else:",
+                                "        return None",
+                                "def cr(ot, rp, pri, ev):",
+                                "    params = dict(rp)",
+                                "    del params['ServiceToken']",
+                                "    ft = not (not rp.get('FailOnTimeout') or (str(rp['FailOnTimeout']).lower() == 'false'))",
+                                "    if ot == 'Cluster':",
+                                "        cluster = chsmv2.create_cluster(**params)['Cluster']",
+                                "        print('Created {}'.format(cluster['ClusterId']))",
+                                "        return cluster['ClusterId'], wait(cluster_id=cluster['ClusterId'], success_states=['ACTIVE','UNINITIALIZED'], ft=False)",
+                                "    elif ot == 'Hsm':",
+                                "        hsm = chsmv2.create_hsm(**params)['Hsm']",
+                                "        print('Created {}'.format(hsm['HsmId']))",
+                                "        return hsm['HsmId'], hsm",
+                                "    elif ot == 'CreateWaiter':",
+                                "        hid = rp.get('HsmId')",
+                                "        cid = rp.get('ClusterId')",
+                                "        rid = hid if hid else cid ",
+                                "        wait(cid, hid, ft=ft)",
+                                "        return rid, None",
+                                "    else:",
+                                "        raise ResourceException(None, 'Invalid resource type {} provided!'.format(ot))",
+                                "def up(ot, rp, pri, ev):",
+                                "    if ot == 'Hsm':",
+                                "        return pri, describe(rp['ClusterId'], pri)",
+                                "    elif ot == 'Cluster':",
+                                "        return pri, describe(pri)",
+                                "    else:",
+                                "        return pri, None",
+                                "def de(ot, rp, pri, ev):",
+                                "    rid = pri",
+                                "    if not rid or not rid.lower().startswith('{}-'.format(ot.lower())):",
+                                "        return rid, None",
+                                "    try:",
+                                "        if ot == 'Hsm':",
+                                "            chsmv2.delete_hsm(HsmId=pri, ClusterId=rp['ClusterId'])",
+                                "            return pri, wait(rp['ClusterId'], pri, success_states=['DELETED'])",
+                                "        elif ot == 'Cluster':",
+                                "            chsmv2.delete_cluster(ClusterId=pri)",
+                                "            return pri, wait(pri, success_states=['DELETED'])",
+                                "        else:",
+                                "            return pri, None",
+                                "    except Exception as e:",
+                                "        if 'CloudHsmResourceNotFoundException' in str(e):",
+                                "            return rid, None",
+                                "        else:",
+                                "            raise e",
+                                "hs = {'Create':cr, 'Delete':de, 'Update':up}",
+                                "def handler(event, context):",
+                                "    print(json.dumps(make_serializable(event), indent=2, sort_keys=True))",
+                                "    try:",
+                                "        id, data = hs[event['RequestType']](event['ResourceType'].split('::')[1], event['ResourceProperties'], event.get('PhysicalResourceId'), event)",
+                                "        cfnresponse.send(event, context, cfnresponse.SUCCESS, make_serializable(data), id)",
+                                "    except Exception as e:",
+                                "        cfnresponse.send(event, context, cfnresponse.FAILED, None, str(e))",
+                                "        raise e",
+                                "    return event"
+                            ]
+                        ]
+                    }
+                },
+                "Description": "",
+                "Environment": {
+                    "Variables": {
+                    }
+                },
+                "Handler": "index.handler",
+                "MemorySize": 128,
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LambdaRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300"
+            }
+        },
+        "CloudHsmV2ClaimFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "ZipFile": {
+                        "Fn::Join": [
+                            "\n",
+                            [
+                                "import boto3",
+                                "import cfnresponse",
+                                "import os",
+                                "import shlex",
+                                "import subprocess",
+                                "import time",
+                                "key_cmd='openssl genrsa -out /tmp/CA.key 2048'",
+                                "crt_cmd='openssl req -new -x509 -days 365 -key /tmp/CA.key -out /tmp/CA.crt'",
+                                "sign_cmd='openssl x509 -req -days 365 -in /tmp/cluster.csr -CA /tmp/CA.crt -CAkey /tmp/CA.key -CAcreateserial -out /tmp/cluster.crt'",
+                                "def m_s(obj):",
+                                "    if None == obj or isinstance(obj, (str,int,float,bool)):",
+                                "        return obj",
+                                "    if isinstance(obj, (dict)):",
+                                "        return {m_s(k):m_s(obj[k]) for k in obj}",
+                                "    if isinstance(obj, (list)):",
+                                "        return [m_s(e) for e in obj]",
+                                "    return str(obj)",
+                                "def run(cmd, inp=None):",
+                                "    resp = subprocess.run(shlex.split(cmd), input=inp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)",
+                                "    if resp.returncode != 0:",
+                                "        raise RuntimeError('Exit code {}:\\nstderr:\\n{}\\nstdout:\\n{}'.format(resp.returncode, resp.stderr.decode('utf-8'), resp.stdout.decode('utf-8')))",
+                                "    return resp.returncode, resp.stdout, resp.stderr",
+                                "def read(fn):",
+                                "    with open(fn) as f:",
+                                "        return f.read()",
+                                "def write(fn, body):",
+                                "    with open(fn, 'w') as f:",
+                                "        f.write(body)",
+                                "def lambda_handler(event, context):",
+                                "    pass",
+                                "def get_cluster(client, cluster_id):",
+                                "    return client.describe_clusters(Filters={'clusterIds':[cluster_id]})['Clusters'][0]",
+                                "def claim(cluster_id, bucket_name):",
+                                "    run(key_cmd)",
+                                "    run(crt_cmd, inp='\\n\\n\\n\\n\\n\\n\\n'.encode('utf-8'))",
+                                "    cloudhsmv2 = boto3.client('cloudhsmv2')",
+                                "    cluster = get_cluster(cloudhsmv2, cluster_id)",
+                                "    pid = '{}_claimed'.format(cluster_id)",
+                                "    data = {'BucketName':bucket_name}",
+                                "    if cluster['State'] == 'UNINITIALIZED':",
+                                "        print('Claiming cluster {}'.format(cluster_id))",
+                                "        certs = cluster['Certificates']",
+                                "        write('/tmp/cluster.csr', certs['ClusterCsr'].strip())",
+                                "        run(sign_cmd)",
+                                "        objects = {",
+                                "            'ClusterCsr.csr': certs['ClusterCsr'],",
+                                "            'HsmCertificate.crt': certs['HsmCertificate'],",
+                                "            'AwsHardwareCertificate.crt': certs['AwsHardwareCertificate'],",
+                                "            'ManufacturerHardwareCertificate.crt': certs['ManufacturerHardwareCertificate'],",
+                                "            'CustomerCA.key': read('/tmp/CA.key'),",
+                                "            'CustomerCA.crt': read('/tmp/CA.crt'),",
+                                "            'Cluster.crt': read('/tmp/cluster.crt')",
+                                "        }",
+                                "        s3 = boto3.client('s3')",
+                                "        for obj in objects:",
+                                "            body = objects[obj].encode('utf-8')",
+                                "            key = cluster_id + '-' + obj",
+                                "            data[obj] = key",
+                                "            s3.put_object(Body=body, Bucket=bucket_name, Key=key)",
+                                "        os.remove('/tmp/CA.key')",
+                                "        os.remove('/tmp/CA.crt')",
+                                "        os.remove('/tmp/cluster.crt')",
+                                "        os.remove('/tmp/cluster.csr')",
+                                "        cloudhsmv2.initialize_cluster(",
+                                "            ClusterId=cluster_id,",
+                                "            SignedCert=objects['Cluster.crt'],",
+                                "            TrustAnchor=objects['CustomerCA.crt']",
+                                "        )",
+                                "        cluster = get_cluster(cloudhsmv2, cluster_id)",
+                                "    while cluster['State'].endswith('_IN_PROGRESS'):",
+                                "        print('Cluster {} state: {}'.format(cluster_id, cluster['State']))",
+                                "        time.sleep(5)",
+                                "        cluster = get_cluster(cloudhsmv2, cluster_id)",
+                                "    return pid, data",
+                                "def cr(rtype, props, physid, event):",
+                                "    return claim(props.get('ClusterId'), props.get('BucketName'))",
+                                "def nop(rtype, props, physid, event):",
+                                "    return physid, props",
+                                "hs = {'Create':cr, 'Delete':nop, 'Update':nop}",
+                                "def handler(event, context):",
+                                "    try:",
+                                "        id, data = hs[event['RequestType']](event['ResourceType'].split('::')[1], event['ResourceProperties'], event.get('PhysicalResourceId'), event)",
+                                "        cfnresponse.send(event, context, cfnresponse.SUCCESS, m_s(data), id)",
+                                "    except Exception as e:",
+                                "        cfnresponse.send(event, context, cfnresponse.FAILED, None, str(e))",
+                                "        raise e"
+                            ]
+                        ]
+                    }
+                },
+                "Description": "",
+                "Environment": {
+                    "Variables": {
+                    }
+                },
+                "Handler": "index.handler",
+                "MemorySize": 128,
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LambdaRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "python3.6",
+                "Timeout": "300"
+            }
+        },
+        "LambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "root",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "cloudwatch:*",
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "logs:*",
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "cloudhsm:*",
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "ec2:*",
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:PutObject",
+                                        "s3:PutObjectAcl"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                {
+                                                    "Fn::GetAtt": [
+                                                        "CertBucket",
+                                                        "Arn"
+                                                    ]
+                                                },
+                                                "/*"
+                                            ]
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+        "PrivateSubnetId1": {
+            "Value": {
+                "Ref": "PrivateSubnet1"
+            }
+        },
+        "PrivateSubnetId2": {
+            "Value": {
+                "Ref": "PrivateSubnet2"
+            }
+        },
+        "PrivateSubnetId3": {
+            "Value": {
+                "Ref": "PrivateSubnet3"
+            }
+        },
+        "ClientIP": {
+            "Value": {
+                "Ref": "ClientEip"
+            }
+        },
+        "ClusterId": {
+            "Value": {
+                "Ref": "Cluster"
+            }
+        }
+    }
+}
