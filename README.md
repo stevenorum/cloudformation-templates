@@ -30,3 +30,5 @@ Some manual work is required to enable the auth for this pipeline to talk to Git
 ## [codepipeline-lambda.cf.json](https://github.com/stevenorum/cloudformation-templates/blob/master/templates/codepipeline-lambda.cf.json)
 
 Template for a CodePipeline that will automatically deploy a Lambda function behind APIGateway.  The inputs to the stack are the same as for codepipeline-github.cf.json.  The package [stevenorum/example-lambda-website](https://github.com/stevenorum/example-lambda-website) is a simple website that the pipeline will successfully launch; you can use that as a basis to learn how to add more complex functionality.
+
+In this template, at the end of the CloudFormationPolicy, there's a list of several <service>:* permissions that are granted.  Those should be the permissions necessary to create the CloudFormation stack, as well as any permissions that IAM roles in the stack itself need to inherit.  Unfortunately, it will likely have to be somewhat broad, due to the difficult of specifying resource-specific permissions for resources that haven't yet been created.

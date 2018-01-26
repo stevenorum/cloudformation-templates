@@ -21,7 +21,7 @@
         },
         "BuildTimeout": {
             "Type": "Number",
-            "Description": "Max time for the build to take.",
+            "Description": "Max time for the build to take, in minutes.",
             "Default": 5
         }
     },
@@ -129,9 +129,14 @@
                                 "sns:*",
                                 "ecs:*",
                                 "logs:*",
-                                "iam:PassRole",
                                 "lambda:*",
-                                "cloudformation:*"
+                                "cloudformation:*",
+                                "apigateway:*",
+                                "iam:PassRole",
+                                "iam:CreatePolicy",
+                                "iam:CreateRole",
+                                "iam:DeletePolicy",
+                                "iam:DeleteRole"
                             ],
                             "Resource": "*",
                             "Effect": "Allow"
@@ -141,7 +146,7 @@
                 }
             }
         },
-        "PipelineLambdaPolicy": {
+        "CloudFormationPolicy": {
             "Type": "AWS::IAM::ManagedPolicy",
             "Properties": {
                 "Description": "",
@@ -162,42 +167,11 @@
                         },
                         {
                             "Action": [
-                                "lambda:*"
-                            ],
-                            "Resource": [
-                                {
-                                    "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:*"
-                                }
-                            ],
-                            "Effect": "Allow"
-                        },
-                        {
-                            "Action": [
-                                "apigateway:*"
-                            ],
-                            "Resource": [
-                                {
-                                    "Fn::Sub": "arn:${AWS::Partition}:apigateway:${AWS::Region}::*"
-                                }
-                            ],
-                            "Effect": "Allow"
-                        },
-                        {
-                            "Action": [
+                                "iam:PassRole",
                                 "iam:GetRole",
                                 "iam:CreateRole",
                                 "iam:DeleteRole",
-                                "iam:PutRolePolicy"
-                            ],
-                            "Resource": [
-                                {
-                                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*"
-                                }
-                            ],
-                            "Effect": "Allow"
-                        },
-                        {
-                            "Action": [
+                                "iam:PutRolePolicy",
                                 "iam:AttachRolePolicy",
                                 "iam:DeleteRolePolicy",
                                 "iam:DetachRolePolicy"
@@ -211,10 +185,13 @@
                         },
                         {
                             "Action": [
-                                "iam:PassRole"
+                                "iam:CreatePolicy",
+                                "iam:DeletePolicy"
                             ],
                             "Resource": [
-                                "*"
+                                {
+                                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/*"
+                                }
                             ],
                             "Effect": "Allow"
                         },
@@ -265,7 +242,20 @@
                                 }
                             ],
                             "Effect": "Allow"
+                        },
+                        {
+                            "Action": [
+                                "cloudwatch:*",
+                                "s3:*",
+                                "logs:*",
+                                "lambda:*",
+                                "cloudformation:*",
+                                "apigateway:*"
+                            ],
+                            "Resource": "*",
+                            "Effect": "Allow"
                         }
+
                     ],
                     "Version": "2012-10-17"
                 }
@@ -311,7 +301,7 @@
                 },
                 "ManagedPolicyArns": [
                     {
-                        "Ref": "PipelineLambdaPolicy"
+                        "Ref": "CloudFormationPolicy"
                     }
                 ],
                 "Path": "/"

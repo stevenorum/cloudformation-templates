@@ -13,7 +13,7 @@
         },
         "BuildTimeout": {
             "Type":"Number",
-            "Description":"Max time for the build to take.",
+            "Description":"Max time for the build to take, in minutes.",
             "Default":5
         }
     },
