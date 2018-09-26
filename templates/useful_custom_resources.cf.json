@@ -1,0 +1,85 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "",
+    "Parameters": {
+        "OptionalParam": {
+            "Type": "String",
+            "Description": "Optional parameter.  Defaults to the CF stack ID.",
+            "Default": ""
+        }
+    },
+    "Conditions":{
+        "OptionalParamProvided":{"Fn::Not":[{"Fn::Equals":["",{"Ref":"OptionalParam"}]}]}
+    },
+    "Resources": {
+        "ExampleResolvedParameter": {
+            "Type": "Custom::String",
+            "Properties": {
+                "ServiceToken": {"Fn::GetAtt": ["ValueStoreFunction","Arn"]},
+                "Value": {"Fn::If":["OptionalParamProvided","OptionalParam",{"Ref":"AWS::StackId"}]},
+                "Description": "This variable can be referenced using the standard Ref format, and it'll return whatever was set as its value.  This means that for cases where you need to determine and then re-use a value multiple times within a template, you can use this to only have to embed the determination logic a single time."
+            }
+        },
+        "ValueStoreFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "ZipFile": {
+                        "Fn::Join": [
+                            "\n",
+                            [
+                                "import cfnresponse",
+                                "def handler(event, context):",
+                                "    props = dict(event.get('ResourceProperties',{}))",
+                                "    del props['ServiceToken']",
+                                "    physical_id = props.get('Value',event['LogicalResourceId'])",
+                                "    cfnresponse.send(event, context, cfnresponse.SUCCESS, props, physical_id)",
+                                "    return event"
+                            ]
+                        ]
+                    }
+                },
+                "Handler": "index.handler",
+                "Role": {"Fn::GetAtt": ["LambdaRole","Arn"]},
+                "Runtime": "python3.6"
+            }
+        },
+        "LambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [{
+                        "Effect": "Allow",
+                        "Principal": {"Service": ["lambda.amazonaws.com"]},
+                        "Action": ["sts:AssumeRole"]
+                    }]
+                },
+                "Path": "/",
+                "Policies": [{
+                    "PolicyName": "root",
+                    "PolicyDocument": {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {"Effect": "Allow","Action": "cloudwatch:*","Resource": "*"},
+                            {"Effect": "Allow","Action": "logs:*","Resource": "*"}
+                        ]
+                    }
+                }]
+            }
+        }
+    },
+    "Outputs": {
+        "ResolvedParameter": {
+            "Description": "This should be either the input parameter OptionalParam or the CF Stack ID.  If you make any changes to the function, you can use this to ensure that it's working correctly.",
+            "Value": {"Ref": "ResolvedParameter"}
+        },
+        "ValueStoreFunction": {
+            "Description": "Lambda function that can be used to resolve parameters to avoid reppetitive usage of Fn::If.",
+            "Value": {"Fn::GetAtt": ["ValueStoreFunction","Arn"]},
+            "Export": {
+                "Name": "FN::STORE-VALUE"
+            }
+        }
+    }
+}
