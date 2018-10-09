@@ -582,6 +582,17 @@
                     "Fn::Sub": "${AWS::StackName}-ArtifactBucket"
                 }
             }
+        },
+        "StaticAssetBucket": {
+            "Description": "Bucket from which the lambda function's static files will be served, if applicable.",
+            "Value": {
+                "Ref": "StaticAssetBucket"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-StaticAssetBucket"
+                }
+            }
         }
     }
 }
