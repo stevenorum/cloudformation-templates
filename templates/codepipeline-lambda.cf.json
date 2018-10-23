@@ -33,6 +33,11 @@
             "Type": "String",
             "Description": "Docker build image to use for this stack.",
             "Default": ""
+        },
+        "BuildParams": {
+            "Type": "String",
+            "Description": "Extra blob of data to pass to the CodeBuild environment.",
+            "Default": "{}"
         }
     },
     "Conditions":{
@@ -369,6 +374,13 @@
                             "Name": "STATIC_BUCKET",
                             "Value": {
                                 "Ref": "StaticAssetBucket"
+                            },
+                            "Type": "PLAINTEXT"
+                        },
+                        {
+                            "Name": "BUILD_PARAMS",
+                            "Value":{
+                                "Ref": "BuildParams"
                             },
                             "Type": "PLAINTEXT"
                         }
